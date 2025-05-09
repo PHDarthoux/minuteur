@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#007BFF">
+
+  <title>Minuteur</title>
+  <style>
+    :root {
+      --font-base: 16px;
+      --font-large: 2.5rem;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 0;
+      padding: 1rem;
+      background: #f9f9f9;
+      color: #333;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .form-container {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    label {
+      display: block;
+      margin: 0.5rem 0;
+      font-size: 1rem;
+    }
+
+    input {
+      width: 100%;
+      padding: 0.5rem;
+      font-size: 1rem;
+      margin-top: 0.25rem;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+
+    .buttons {
+      display: flex;
+      justify-content: space-around;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 1rem 0;
+    }
+
+    button {
+      flex: 1 1 30%;
+      padding: 1rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 8px;
+      background-color: #007BFF;
+      color: white;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    #timerDisplay {
+      text-align: center;
+      font-size: var(--font-large);
+      font-weight: bold;
+      margin: 1rem 0;
+    }
+
+    #alertsContainer {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      max-width: 100%;
+    }
+
+    .alert-banner {
+      color: white;
+      padding: 1rem;
+      border-radius: 5px;
+      position: relative;
+      font-size: 1rem;
+      text-align: center;
+      animation: slidein 0.3s ease-out;
+    }
+
+    @keyframes slidein {
+      from { transform: translateY(-20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .alert-banner button {
+      position: absolute;
+      top: 5px;
+      right: 10px;
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 1.5rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .level-0 { background-color: #e74c3c; }
+    .level-1 { background-color: #f39c12; }
+    .level-2 { background-color: #27ae60; }
+    .level-3 { background-color: #2980b9; }
+  </style>
+</head>
+<body>
+  <div class="form-container">
+    <h1>Minuteur responsive</h1>
+
+    <label>
+      Durée totale (minutes) :
+      <input type="number" id="totalTime" value="40" min="1" />
+    </label>
+
+    <label>
+      Alertes (minutes avant la fin, séparées par virgule) :
+      <input type="text" id="alerts" value="15,10,5" />
+    </label>
+
+    <div class="buttons">
+      <button onclick="startTimer()">Lancer</button>
+      <button onclick="togglePause()">Pause / Reprendre</button>
+      <button onclick="resetTimer()">Stop / Réinitialiser</button>
+    </div>
+
+    <div id="timerDisplay">--:--</div>
+    <div id="alertsContainer"></div>
+  </div>
+
+  <script>
+    let timerInterval;
+    let isPaused = false;
+    let remaining = 0;
+    let alertSeconds = [];
+    let triggeredAlerts = new Set();
+    let totalSeconds = 0;
+
+    if ('Notification' in window && Notification.permission !== 'granted') {
+      Notification.requestPermission();
+    }
+
+    function notify(message) {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(message);
+      }
+      if ('vibrate' in navigator) {
+        navigator.vibrate([500, 300, 500]);
+      }
+    }
+
+    function createBanner(message, level, key) {
+      const banner = document.createElement('div');
+      banner.className = `alert-banner level-${level % 4}`;
+      banner.id = `alert-${key}`;
+      banner.innerHTML = `
+        ${message}
+        <button onclick="this.parentElement.remove()">×</button>
+      `;
+      document.getElementById('alertsContainer').appendChild(banner);
+    }
+
+    function updateDisplay(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      document.getElementById('timerDisplay').textContent =
+        `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    function startTimer() {
+      clearInterval(timerInterval);
+      triggeredAlerts.clear();
+      document.getElementById('alertsContainer').innerHTML = '';
+      isPaused = false;
+
+      const totalMinutes = parseInt(document.getElementById('totalTime').value);
+      const alertsInput = document.getElementById('alerts').value;
+      const alertPoints = alertsInput
+        .split(',')
+        .map(v => parseInt(v.trim()))
+        .filter(v => !isNaN(v) && v > 0);
+
+      totalSeconds = totalMinutes * 60;
+      alertSeconds = alertPoints.map(m => totalSeconds - (m * 60));
+      remaining = totalSeconds;
+
+      updateDisplay(remaining);
+
+      timerInterval = setInterval(() => {
+        if (isPaused) return;
+
+        remaining--;
+        updateDisplay(remaining);
+
+        if (alertSeconds.includes(remaining) && !triggeredAlerts.has(remaining)) {
+          triggeredAlerts.add(remaining);
+          const minsLeft = Math.floor(remaining / 60);
+          const index = alertSeconds.indexOf(remaining);
+          const message = `⏰ Il reste ${minsLeft} minute${minsLeft > 1 ? 's' : ''} !`;
+          notify(message);
+          createBanner(message, index, remaining);
+        }
+
+        if (remaining <= 0) {
+          clearInterval(timerInterval);
+          notify("⏳ Temps écoulé !");
+          createBanner("⏳ Temps écoulé !", 0, 'end');
+        }
+      }, 1000);
+    }
+
+    function togglePause() {
+      isPaused = !isPaused;
+    }
+
+    function resetTimer() {
+      clearInterval(timerInterval);
+      isPaused = false;
+      remaining = 0;
+      updateDisplay(0);
+      document.getElementById('alertsContainer').innerHTML = '';
+    }
+  </script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('service-worker.js')
+          .then(reg => console.log('✅ Service Worker enregistré', reg))
+          .catch(err => console.error('❌ Erreur SW', err));
+      }
+    </script>
+</body>
+</html>
+
