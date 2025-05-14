@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#007BFF">
-
+  
   <title>Minuteur</title>
   <style>
     :root {
@@ -124,7 +124,7 @@
 </head>
 <body>
   <div class="form-container">
-    <h1>Minuteur responsive</h1>
+    <h1>Minuteur</h1>
 
     <label>
       Durée totale (minutes) :
@@ -150,7 +150,7 @@
     let timerInterval;
     let isPaused = false;
     let remaining = 0;
-    let alertSeconds = [];
+    let alertMinutes = [];
     let triggeredAlerts = new Set();
     let totalSeconds = 0;
 
@@ -193,13 +193,12 @@
 
       const totalMinutes = parseInt(document.getElementById('totalTime').value);
       const alertsInput = document.getElementById('alerts').value;
-      const alertPoints = alertsInput
+      alertMinutes = alertsInput
         .split(',')
         .map(v => parseInt(v.trim()))
         .filter(v => !isNaN(v) && v > 0);
 
       totalSeconds = totalMinutes * 60;
-      alertSeconds = alertPoints.map(m => totalSeconds - (m * 60));
       remaining = totalSeconds;
 
       updateDisplay(remaining);
@@ -210,13 +209,12 @@
         remaining--;
         updateDisplay(remaining);
 
-        if (alertSeconds.includes(remaining) && !triggeredAlerts.has(remaining)) {
-          triggeredAlerts.add(remaining);
-          const minsLeft = Math.floor(remaining / 60);
-          const index = alertSeconds.indexOf(remaining);
-          const message = `⏰ Il reste ${minsLeft} minute${minsLeft > 1 ? 's' : ''} !`;
+        const currentMinutes = Math.ceil(remaining / 60);
+        if (alertMinutes.includes(currentMinutes) && !triggeredAlerts.has(currentMinutes)) {
+          triggeredAlerts.add(currentMinutes);
+          const message = `⏰ Il reste ${currentMinutes} minute${currentMinutes > 1 ? 's' : ''} !`;
           notify(message);
-          createBanner(message, index, remaining);
+          createBanner(message, alertMinutes.indexOf(currentMinutes), currentMinutes);
         }
 
         if (remaining <= 0) {
@@ -237,7 +235,7 @@
       remaining = 0;
       updateDisplay(0);
       document.getElementById('alertsContainer').innerHTML = '';
-    }
+          }
   </script>
     <script>
       if ('serviceWorker' in navigator) {
@@ -245,7 +243,6 @@
           .then(reg => console.log('✅ Service Worker enregistré', reg))
           .catch(err => console.error('❌ Erreur SW', err));
       }
-    </script>
+  </script>
 </body>
 </html>
-
